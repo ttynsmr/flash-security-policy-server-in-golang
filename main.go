@@ -1,31 +1,33 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
-	"net"
-//	"io/ioutil"
 	"flag"
+	"fmt"
+	"net"
+	"os"
+//	"os/exec"
+	"os/signal"
 	"strconv"
+	"syscall"
 )
 
 var (
-	socketpolicy []byte
-	port int = 843
+	socketpolicy     []byte
+	port             int    = 843
 	socketpolicyfile string = "socketpolicy.xml"
 )
 
-func signal_arm () {
+func signal_arm() {
 	fmt.Println("signal armed")
 
-	go func(){
+	go func() {
 		for {
-			sig := (<-signal.Incoming).(signal.UnixSignal)
-			
+			c := make(chan os.Signal)
+			signal.Notify(c, syscall.SIGINT)
+			sig := <-c
+
 			fmt.Println("%s", sig.String())
-			
+
 			switch sig {
 			case syscall.SIGINT:
 				os.Exit(0)
@@ -37,16 +39,16 @@ func signal_arm () {
 }
 
 func loadPolicyFile() bool {
-	file, err := os.Open( socketpolicyfile, os.O_RDONLY, 0 );
+	file, err := os.Open(socketpolicyfile)
 	if err == nil {
 		stat, _ := file.Stat()
-		socketpolicy = make([]byte, stat.Size + 1)
+		socketpolicy = make([]byte, stat.Size()+1)
 		file.Read(socketpolicy)
-		socketpolicy[stat.Size] = 0
+		socketpolicy[stat.Size()] = 0
 		file.Close()
 		file = nil
 	} else {
-		fmt.Println(">>>> socket policy file open error:", err.String())
+		fmt.Println(">>>> socket policy file open error:", err.Error())
 		return false
 	}
 	return true
@@ -71,12 +73,12 @@ func main() {
 }
 
 func accepts() {
-	strPort := ":" + strconv.Itoa(port)
+	strPort := "localhost:" + strconv.Itoa(port)
 	fmt.Println("open port", strPort)
-	addr, err := net.ResolveTCPAddr(strPort)
+	addr, err := net.ResolveTCPAddr("tcp4", strPort)
 	l, err := net.ListenTCP("tcp4", addr)
 	if err != nil {
-		fmt.Println(">>>> listen failed: ", err.String())
+		fmt.Println(">>>> listen failed: ", err.Error())
 		return
 	}
 	addr = nil
@@ -85,7 +87,7 @@ func accepts() {
 		session, err := l.AcceptTCP()
 		if err != nil {
 			//return
-			fmt.Println("Accept error:", err.String())
+			fmt.Println("Accept error:", err.Error())
 			continue
 		}
 
@@ -98,7 +100,7 @@ func accepts() {
 
 func session_process(s *net.TCPConn) {
 	fmt.Println("Accepted session start")
-	if( recieve_request(s) ) {
+	if recieve_request(s) {
 		send_response(s)
 	}
 	s.Close()
@@ -110,11 +112,11 @@ func recieve_request(s *net.TCPConn) bool {
 	// 超適当なのでリクエストの受信完了は待たない
 	/*
 	_, err := ioutil.ReadAll(s)
-	if( err == os.EOF ) {
+	if err == io.EOF {
 		// write request validation here!
 		return true
 	}
-	return  false
+	return false
 	 */
 
 	return true
